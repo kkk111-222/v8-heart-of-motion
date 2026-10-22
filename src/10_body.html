@@ -1,0 +1,294 @@
+<body>
+<script>
+/* 早期错误捕获：任何脚本错误都会显示在画布上，而不是静默黑屏 */
+window.__ERR__ = [];
+window.__DIAG__ = {};
+(function(){
+  function push(kind, msg){
+    try{
+      window.__ERR__.push(kind + ': ' + msg);
+      var box = document.getElementById('fatal');
+      if (box) {
+        var t = document.getElementById('fatalMsg');
+        if (t) t.textContent = window.__ERR__.join('\n');
+        box.classList.add('show');
+        var ld = document.getElementById('loading'); if (ld) ld.classList.add('hide');
+      }
+    }catch(e){}
+  }
+  window.addEventListener('error', function(e){
+    push('error', (e.message || 'unknown') + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : ''));
+  });
+  window.addEventListener('unhandledrejection', function(e){
+    push('promise', String((e.reason && e.reason.message) || e.reason));
+  });
+  window.__pushErr = push;
+})();
+</script>
+
+<header>
+  <div class="brand">
+    <div class="mark">V<b>8</b></div>
+    <div>
+      <div class="title">THE HEART OF MOTION</div>
+      <div class="sub">八缸协同，燃烧成力 · 90° V8 · 4.997 L · DOHC 32V</div>
+    </div>
+  </div>
+
+  <div class="hdr-mid">
+    <div class="hstat"><span class="k">状态</span><span class="v" id="hdrState"><i class="dot off" id="hdrDot"></i> 熄火</span></div>
+    <div class="hstat"><span class="k">工况转速</span><span class="v" id="hdrRpm">0<em>RPM</em></span></div>
+    <div class="hstat"><span class="k">机构展示</span><span class="v" id="hdrMech">60<em>RPM</em></span></div>
+    <div class="hstat"><span class="k">观察倍率</span><span class="v" id="hdrScale">1.000×</span></div>
+    <div class="hstat"><span class="k">曲轴相位</span><span class="v" id="hdrAngle">0.0°</span></div>
+  </div>
+
+  <div class="hdr-tools">
+    <span class="volwrap" title="音量"><input type="range" id="volume" min="0" max="100" step="1" value="50" aria-label="音量"><span id="volVal">50</span></span>
+    <select id="quality" class="sel" title="画质">
+      <option value="auto">画质 · 自动</option>
+      <option value="high">画质 · 高</option>
+      <option value="smooth">画质 · 流畅</option>
+    </select>
+    <button class="chip" id="btnSound" title="声音（M）"><span class="dot off" id="soundDot"></span>声音 关</button>
+    <button class="chip" id="btnHelp" title="快捷键与说明">?</button>
+  </div>
+</header>
+
+<main>
+  <div id="stage">
+    <canvas id="gl"></canvas>
+
+    <div class="stage-ui tl">
+      <div class="big">V8 / THE HEART OF MOTION</div>
+      <div>实时机构剖面 · 十字平面曲轴 · 720° 循环</div>
+    </div>
+
+    <div class="viewtag">
+      <b id="viewName">机械切面</b>
+      <span id="viewSub">SECTION CUTAWAY</span>
+    </div>
+
+    <div id="labels"><svg id="labelSvg"></svg></div>
+
+    <div class="stage-ui bl">
+      <span><kbd>空格</kbd> 暂停机构</span>
+      <span><kbd>R</kbd> 复位</span>
+      <span><kbd>C</kbd> 切面</span>
+      <span><kbd>M</kbd> 静音</span>
+      <span><kbd>1-4</kbd> 镜头</span>
+    </div>
+    <div class="stage-ui br" id="fpsTag">—</div>
+
+    <div id="debug"></div>
+
+    <div id="loading">
+      <div class="ldwrap">
+        <div class="ring"></div>
+        <div class="ldtxt">正在建立机构 · Building assembly</div>
+      </div>
+    </div>
+
+    <div id="fatal">
+      <div class="fcard">
+        <h3>页面没有成功启动 3D 场景</h3>
+        <p>请确认浏览器支持 WebGL2，并且能访问 <code>cdn.jsdelivr.net</code>（Three.js 从该 CDN 按固定版本加载）。<br>
+        错误信息：</p>
+        <p style="margin-top:8px"><code id="fatalMsg" style="white-space:pre-wrap;display:block;line-height:1.6"></code></p>
+      </div>
+    </div>
+  </div>
+
+  <aside>
+    <!-- 第一层：主要工况 -->
+    <div class="sec">
+      <div class="sec-h"><span class="l">主要工况</span><span class="r">OPERATING POINT</span></div>
+      <div class="state-line">
+        <span class="dot off" id="pDot"></span>
+        <span class="st" id="pState">熄火</span>
+        <span class="sub" id="pSub">FUEL OFF</span>
+      </div>
+      <div class="rpmrow">
+        <span id="rpmBig">0</span>
+        <span class="u">RPM</span>
+        <span class="gear" id="gearTxt">IDLE CTRL · ARMED</span>
+      </div>
+      <div class="rpmbar" id="rpmBar"><div class="fill" id="rpmFill"></div><div class="red"></div></div>
+      <div class="rpmtick"><span>0</span><span>2000</span><span>4000</span><span>6000</span><span>7500</span></div>
+      <div class="kvbig">
+        <div class="cell">
+          <div class="k">曲轴扭矩</div>
+          <div class="v" id="tqVal">0<em>Nm</em></div>
+          <div class="hint">燃烧 − 摩擦</div>
+        </div>
+        <div class="cell">
+          <div class="k">输出功率</div>
+          <div class="v" id="pwVal">0<em>kW</em></div>
+          <div class="hint" id="pwHp">0 hp</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 第二层：主要控制 -->
+    <div class="sec">
+      <div class="sec-h"><span class="l">主要控制</span><span class="r">DEMAND</span></div>
+      <div class="ctrl">
+        <div class="lab"><span class="n">油门</span><span class="val"><span id="throttleVal">0</span><em>%</em> <span style="color:#5D6A77" id="throttleEff">· 有效 0%</span></span></div>
+        <input type="range" id="throttle" min="0" max="100" step="1" value="0" class="acc" aria-label="油门">
+      </div>
+      <div class="ctrl">
+        <div class="lab"><span class="n">外部负载</span><span class="val"><span id="loadVal">0</span><em>%</em></span></div>
+        <input type="range" id="load" min="0" max="100" step="1" value="0" aria-label="外部负载">
+      </div>
+      <div class="presets">
+        <button data-preset="idle" class="on">怠速</button>
+        <button data-preset="cruise">巡航</button>
+        <button data-preset="wot">全油门</button>
+        <button data-preset="limit">红线</button>
+      </div>
+    </div>
+
+    <!-- 第三层：诊断 -->
+    <div class="sec">
+      <div class="sec-h"><span class="l">紧凑诊断</span><span class="r">TELEMETRY</span></div>
+      <div class="diag">
+        <div class="d"><span class="k">冷却液</span><span class="v" id="dTemp">—<em>°C</em></span></div>
+        <div class="d"><span class="k">机油压力</span><span class="v" id="dOil">—<em>bar</em></span></div>
+        <div class="d"><span class="k">AFR</span><span class="v" id="dAfr">—</span></div>
+        <div class="d"><span class="k">MAP</span><span class="v" id="dMap">—<em>bar</em></span></div>
+        <div class="d"><span class="k">点火提前</span><span class="v" id="dAdv">—<em>°</em></span></div>
+        <div class="d"><span class="k">机构转速</span><span class="v" id="dMech">—<em>RPM</em></span></div>
+        <div class="d"><span class="k">观察倍率</span><span class="v" id="dScale">—</span></div>
+        <div class="d"><span class="k">选中气缸</span><span class="v" id="dCyl">#1</span></div>
+      </div>
+    </div>
+
+    <!-- 第四层：图表 -->
+    <div class="sec">
+      <div class="sec-h"><span class="l">图表</span><span class="r">PERFORMANCE</span></div>
+      <div class="charts">
+        <div class="chart">
+          <div class="ct">
+            <span class="n">扭矩 / 功率 — 转速</span>
+            <span class="lg"><span><i style="background:#FFAB5E"></i>Nm</span><span><i style="background:#70D8E5"></i>kW</span></span>
+          </div>
+          <canvas class="ch" id="chTorque" width="680" height="256"></canvas>
+        </div>
+        <div class="chart">
+          <div class="ct">
+            <span class="n">选中缸 — P / V 图</span>
+            <span class="lg"><span><i style="background:#E45A52"></i>缸压</span></span>
+          </div>
+          <canvas class="ch" id="chPV" width="680" height="196"></canvas>
+          <div class="note">压力与气流为教学示意；容积由活塞真实位移计算，压力采用简化多变过程 + 做功放热。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec" style="border-bottom:0;padding-bottom:16px"></div>
+  </aside>
+</main>
+
+<footer>
+  <div class="fleft">
+    <div class="fhead"><span>八缸状态带</span><span class="o" id="fireOrderTag">1→8→4→3→6→5→7→2</span></div>
+    <div class="bank"><span class="tag">A</span><div class="cyls" id="cylA"></div></div>
+    <div class="bank"><span class="tag">B</span><div class="cyls" id="cylB"></div></div>
+  </div>
+
+  <div class="fmid">
+    <div class="tlhead">
+      <span>720° 循环时间轴 · <span id="tlCyl">#1</span> <span style="color:#8794A3;letter-spacing:0" id="tlPhaseName">做功</span></span>
+      <span class="r" id="tlAngle">0.0° / 720°</span>
+    </div>
+    <div class="tlwrap">
+      <canvas id="timeline" width="1400" height="68"></canvas>
+    </div>
+    <div class="tlcap">
+      <span>0° 做功上止点</span><span>180° 排气下止点</span><span>360° 进气上止点</span><span>540° 压缩下止点</span><span>720°</span>
+    </div>
+    <div class="transport">
+      <button class="btn" id="btnPause" title="机构播放 / 暂停（空格）">⏸ 暂停机构</button>
+      <span class="rgroup" style="margin-left:2px">
+        <button class="btn ghost small" data-step="-15">−15°</button>
+        <button class="btn ghost small" data-step="-5">−5°</button>
+        <button class="btn ghost small" data-step="-1">−1°</button>
+        <button class="btn ghost small" data-step="1">+1°</button>
+        <button class="btn ghost small" data-step="5">+5°</button>
+        <button class="btn ghost small" data-step="15">+15°</button>
+      </span>
+      <span class="rgroup" style="margin-left:auto">
+        <span class="glab">气流</span>
+        <button class="btn small" id="btnFlow">开</button>
+      </span>
+    </div>
+  </div>
+
+  <div class="fright">
+    <div class="rgroup">
+      <button class="btn amber" id="btnStart" style="flex:1 1 auto">启动发动机</button>
+      <button class="btn" id="btnCine" title="电影演示（约 24 秒）">电影演示</button>
+      <button class="btn" id="btnReset" title="复位视角（R）">复位</button>
+    </div>
+    <div class="rgroup">
+      <span class="glab">视图</span>
+      <button class="btn viewbtn on" data-view="section">切面</button>
+      <button class="btn viewbtn" data-view="exterior">外观</button>
+      <button class="btn viewbtn" data-view="explode">爆炸</button>
+      <button class="btn" id="btnAnno" title="工程标注">标注</button>
+    </div>
+    <div class="rgroup">
+      <span class="glab">镜头</span>
+      <button class="btn cambtn on" data-cam="whole">全机</button>
+      <button class="btn cambtn" data-cam="crank">曲柄</button>
+      <button class="btn cambtn" data-cam="cylinder">单缸</button>
+      <button class="btn cambtn" data-cam="valvetrain">配气</button>
+    </div>
+    <div class="rgroup">
+      <span class="glab">倍率</span>
+      <select id="speedMode" class="mini">
+        <option value="auto">自动慢放</option>
+        <option value="slow">超慢观察</option>
+        <option value="manual">手动倍率</option>
+        <option value="real">真实 1×</option>
+      </select>
+      <span id="manualWrap" style="display:none">
+        <input type="range" id="manualScale" min="0.1" max="100" step="0.1" value="10" aria-label="手动倍率">
+        <span id="manualVal">0.010×</span>
+      </span>
+      <span id="autoScaleTag" style="font-family:var(--mono);font-size:9px;color:#5C6877;margin-left:auto">60 RPM 展示</span>
+    </div>
+    <div class="rgroup">
+      <span class="glab">显示</span>
+      <select id="quality2" class="mini" title="显示模式">
+        <option value="section">机械切面</option>
+        <option value="exterior">外观视图</option>
+        <option value="explode">分层爆炸</option>
+      </select>
+      <button class="btn small" id="btnSound2" title="声音">声音</button>
+      <button class="btn small" id="btnDebug" title="调试信息">调试</button>
+    </div>
+  </div>
+</footer>
+
+<div id="help">
+  <div class="hsheet" style="position:relative">
+    <h2>V8 / THE HEART OF MOTION</h2>
+    <div class="p">实时 3D 交互实验室 · 十字平面曲轴 · DOHC 32 气门 · 教学用虚构机型</div>
+    <div class="rows">
+      <span><kbd>空格</kbd></span><span>机构播放 / 暂停（只影响观察时钟，不影响工况转速）</span>
+      <span><kbd>R</kbd></span><span>复位到默认构图</span>
+      <span><kbd>C</kbd></span><span>切面 / 外观 切换</span>
+      <span><kbd>E</kbd></span><span>分层爆炸图</span>
+      <span><kbd>M</kbd></span><span>声音开关</span>
+      <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd></span><span>全机 / 曲柄 / 单缸 / 配气 镜头</span>
+      <span><kbd>←</kbd><kbd>→</kbd></span><span>暂停状态下按 1° 步进（Shift 为 15°）</span>
+      <span>鼠标</span><span>左键拖动旋转、滚轮缩放、右键平移</span>
+      <span>气缸</span><span>直接点击活塞 / 连杆可选中该缸，并切换到单缸观察</span>
+    </div>
+    <p style="font-size:11px;color:#5E6B78;margin-top:16px;line-height:1.7">
+      说明：本机为教学与展示用虚构型号，不套用现实产品。压力、AFR、MAP、温度均为简化模型，用于表现参数之间的关联。
+    </p>
+    <div class="hclose"><button class="btn" id="helpClose">关闭</button></div>
+  </div>
+</div>
